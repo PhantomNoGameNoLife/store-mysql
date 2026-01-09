@@ -1,0 +1,37 @@
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+venv/
+env/
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+
+# Compiled files
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary files
+*.tmp
+temp/

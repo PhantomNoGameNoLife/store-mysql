@@ -82,96 +82,155 @@ connection.connect((err) => {
                 if (err) return console.log(err)
                 console.log("ProductName is NOT NULL")
             })
-
-            //inserts
-            connection.execute(`insert into suppliers(sup_name,sup_contactnum) values('FreshFoods','01001234567')`, (err) => {
-                if (err) return console.log(err)
-                console.log("FreshFoods inserted")
-            })
-            connection.execute(`insert into products(p_name,p_price,p_stkqty,supplier_id) 
-                values('milk','15.00','50','1'),('bread','10.00','30','1'),('eggs','20.00','40','1')`, (err) => {
-                if (err) return console.log(err)
-                console.log("products inserted")
-            })
-            connection.execute(`insert into sales(product_id,sal_qtysold,sal_date) values('1','2','2025-05-20')`, (err) => {
-                if (err) return console.log(err)
-                console.log("sales inserted")
-            })
-
-            //update bread price
-            connection.execute(`update products set p_price='25.00' where p_name='bread'`, (err) => {
-                if (err) return console.log(err)
-                console.log("bread price updated")
-            })
-
-            //delete product eggs
-            connection.execute(`delete from products where p_name='eggs'`, (err) => {
-                if (err) return console.log(err)
-                console.log("product eggs deleted")
-            })
-
-            //total quantity sold for each product
-            connection.execute(`select p.p_name,sum(s.sal_qtysold) as total_quantity_sold
-                from products as p join sales as s 
-                on p.p_id=s.product_id`, (err, result) => {
-                if (err) return console.log(err)
-                console.log(result[0])
-            })
-
-            //get product with the highest stock
-            connection.execute(`select * from products order by p_stkqty desc limit 1`, (err, result) => {
-                if (err) return console.log(err)
-                console.log(result[0])
-            })
-
-            //Find suppliers with names starting with 'F'
-            connection.execute(`SELECT * FROM suppliers WHERE sup_name LIKE 'F%'`, (err, result) => {
-                if (err) return console.log(err)
-                console.log(result)
-            })
-
-            //Show all products that have never been sold
-            connection.execute(`
-                SELECT * 
-                FROM products as p LEFT JOIN sales as s
-                on p.p_id=s.product_id
-                WHERE s.product_id IS NULL`, (err, result) => {
-                if (err) return console.log(err)
-                console.log(result)
-            })
-
-            //Get all sales along with product name and sale date
-            connection.execute(`
-                SELECT p.p_name,s.sal_date 
-                FROM products as p JOIN sales as s
-                on p.p_id=s.product_id`, (err, result) => {
-                if (err) return console.log(err)
-                console.log(result)
-            })
-
-            //Create a user “store_manager” and give them SELECT, INSERT, and UPDATE permissions on all tables
-            connection.execute(`create user if not exists 
-                'store_manager'@'localhost' identified by 'admin'`, (err) => {
-                if (err) return console.log(err)
-                console.log("store_manager user created")
-            })
-            connection.execute(`grant select, insert, update on store.* to 'store_manager'@'localhost'`, (err) => {
-                if (err) return console.log(err)
-                console.log("select, insert, update granted to store_manager")
-            })
-
-            //Revoke UPDATE permission from “store_manager”
-            connection.execute(`revoke update on store.* from 'store_manager'@'localhost'`, (err) => {
-                if (err) return console.log(err)
-                console.log("update permission revoked from store_manager")
-            })
-
-            //Grant DELETE permission to “store_manager” only on the Sales table
-            connection.execute(`grant delete on store.sales to 'store_manager'@'localhost'`, (err) => {
-                if (err) return console.log(err)
-                console.log("DELETE permission granted on sales table only")
-            })
         })
+    })
+})
+
+app.post("/suppliers", (req, res) => {
+    const { name, contact } = req.body
+    connection.execute(`insert into suppliers (sup_name, sup_contactnum) values (?, ?)`, [name, contact],
+        (err, result) => {
+            if (err) return res.status(500).json(err)
+            if (result.affectedRows > 0) return res.status(201).json({ message: "Supplier Added Successfully" })
+            return res.status(400).json({ message: "fail to add supplier" })
+        }
+    )
+})
+
+app.post("/products", (req, res) => {
+    const { name, price, quantity, supplierId } = req.body
+    connection.execute(`insert into products (p_name, p_price, p_stkqty, supplier_id) values (?, ?, ?, ?)`, [name, price, quantity, supplierId],
+        (err, result) => {
+            if (err) {
+                if (err.errno === 1452) return res.status(500).json({ message: "supplier_id doesn't exist" })
+                return res.status(400).json(err)
+            }
+            if (result.affectedRows > 0) return res.status(201).json({ message: "Product Added Successfully" })
+            return res.status(400).json({ message: "fail to add product" })
+        }
+    )
+})
+
+app.post("/sales", (req, res) => {
+    const { productId, quantity, date } = req.body
+    connection.execute(`insert into sales (product_id, sal_qtysold, sal_date) values (?, ?, ?)`,
+        [productId, quantity, date],
+        (err, result) => {
+            if (err) {
+                if (err.errno === 1452) return res.status(500).json({ message: "product_id doesn't exist" })
+                return res.status(400).json(err)
+            }
+            if (result.affectedRows > 0) return res.status(201).json({ message: "Sale Added Successfully" })
+            return res.status(400).json({ message: "fail to add sale" })
+        }
+    )
+})
+
+app.patch("/products/:id", (req, res) => {
+    const { price } = req.body
+    connection.execute(`update products set p_price=? where p_id=?`, [price, req.params.id],
+        (err, result) => {
+            if (err) return res.status(500).json(err)
+            if (result.affectedRows > 0) return res.status(200).json({ message: "Price updated" })
+            return res.status(400).json({ message: "fail to update price or product_id doesn't exist" })
+        }
+    )
+})
+
+app.delete("/products/:id", (req, res) => {
+    connection.execute(`delete from products where p_id=?`, [req.params.id],
+        (err, result) => {
+            if (err) return res.status(500).json(err)
+            if (result.affectedRows > 0) return res.status(200).json({ message: "Product deleted" })
+            return res.status(400).json({ message: "fail to delete product or product_id doesn't exist" })
+        }
+    )
+})
+
+app.get("/sales/total-sales", (req, res) => {
+    connection.execute(`
+        select p.p_name, sum(s.sal_qtysold) as total_quantity_sold
+        from products p
+        join sales s on p.p_id = s.product_id
+        group by p.p_id`, (err, result) => {
+        if (err) return res.status(500).json(err)
+        if (result.length === 0) return res.status(404).json({ message: "sale doesn't exist" })
+        return res.status(200).json(result)
+    })
+})
+
+app.get("/products/highest-stock", (req, res) => {
+    connection.execute(`select * from products order by p_stkqty desc limit 1`,
+        (err, result) => {
+            if (err) return res.status(500).json(err)
+            if (result.length === 0) return res.status(404).json({ message: "no products" })
+            return res.status(200).json(result[0])
+        })
+})
+
+app.get("/suppliers/search/:name", (req, res) => {
+    connection.execute(`select * from suppliers where sup_name like ?`, [`${req.params.name}%`],
+        (err, result) => {
+            if (err) return res.status(500).json(err)
+            if (result.length === 0) return res.status(404).json({ message: "no products" })
+            return res.status(200).json(result)
+        })
+})
+
+app.get("/products/not-sold", (req, res) => {
+    connection.execute(`
+        select p.*
+        from products p
+        left join sales s on p.p_id = s.product_id
+        where s.product_id is null`, (err, result) => {
+        if (err) return res.status(500).json(err)
+        if (result.length === 0) return res.status(404).json({ message: "no products" })
+        return res.status(200).json(result)
+    })
+})
+
+app.get("/sales/details", (req, res) => {
+    connection.execute(`
+        select p.p_name,s.sal_date 
+        from products as p join sales as s
+        on p.p_id=s.product_id`, (err, result) => {
+        if (err) return res.status(500).json(err)
+        if (result.length === 0) return res.status(404).json({ message: "no sales details" })
+        return res.status(200).json(result)
+    })
+})
+
+app.post("/admin", (req, res) => {
+    const { name, password } = req.body
+    connection.execute(`create user if not exists \`${name}\`@'localhost' identified by '${password}'`, (err, result) => {
+        if (err) return res.status(500).json(err)
+        console.log(result)
+        return res.status(201).json({ message: "Admin Add Successfully" })
+    })
+})
+
+app.post("/admin/grant", (req, res) => {
+    const { user, db } = req.body
+    connection.query(`grant select, insert, update on \`${db}\`.* to '${user}'@'localhost'`, (err, result) => {
+        if (err) return res.status(500).json(err)
+        console.log(result)
+        return res.status(200).json({ message: `SELECT, INSERT, UPDATE granted to ${user} on database ${db}` })
+    })
+})
+
+app.post("/admin/revoke-update", (req, res) => {
+    const { user, db } = req.body
+    connection.query(`revoke update on \`${db}\`.* from '${user}'@'localhost'`, (err, result) => {
+        if (err) return res.status(500).json(err)
+        return res.status(200).json({ message: `UPDATE permission revoked from ${user} on database ${db}` })
+    })
+})
+
+app.post("/admin/grant-delete", (req, res) => {
+    const { user, db, table } = req.body
+    connection.query(`grant delete on \`${db}\`.\`${table}\` to '${user}'@'localhost'`, (err, result) => {
+        if (err) return res.status(500).json(err)
+        return res.status(200).json({ message: `DELETE granted on ${db}.${table} table to ${user}` })
     })
 })
 
